@@ -27,3 +27,6 @@ TZ.md
 # e2e
 node_modules/
 tests/e2e/*.png
+
+# local Claude Code settings
+.claude/
