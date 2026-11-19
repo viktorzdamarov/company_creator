@@ -1,0 +1,25 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# local db
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+
+# source materials of the assignment (not part of the project)
+*.pdf
+*.jpg
+TZ.md
