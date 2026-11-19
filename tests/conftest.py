@@ -18,7 +18,10 @@ def _test_env(monkeypatch, tmp_path):
     for key, value in TEST_ENV.items():
         monkeypatch.setenv(key, value)
     from app.core.config import get_settings
+    from app.services.defaults import clear_defaults_cache
 
     get_settings.cache_clear()
+    clear_defaults_cache()
     yield
     get_settings.cache_clear()
+    clear_defaults_cache()

@@ -195,6 +195,19 @@ class KeitaroClient:
         streams = [Stream.model_validate(s) for s in data]
         return sorted(streams, key=lambda s: s.position)
 
+    def create_campaign(self, payload: dict) -> Campaign:
+        return Campaign.model_validate(self.request("POST", "/campaigns", json=payload))
+
+    def delete_campaign(self, campaign_id: int) -> None:
+        """Keitaro moves the campaign to the archive (soft delete)."""
+        self.request("DELETE", f"/campaigns/{campaign_id}")
+
+    def create_stream(self, payload: dict) -> Stream:
+        return Stream.model_validate(self.request("POST", "/streams", json=payload))
+
+    def update_stream(self, stream_id: int, payload: dict) -> Stream:
+        return Stream.model_validate(self.request("PUT", f"/streams/{stream_id}", json=payload))
+
     # ------------------------------------------------------------------ stats
 
     def stream_stats(self, campaign_id: int, interval: str = "all_time") -> dict[int, StreamStats]:

@@ -79,10 +79,40 @@ Tracking URL = `domain` + `alias` → `https://kylovoa.com/test_freefaint_editor
 Ответ: `{"rows": [{"stream_id": .., "clicks": .., "campaign_unique_clicks": .., "bots": ..}], "total": N}`.
 Соответствует колонкам «Клики / Уник. / Боты».
 
-## Ещё не проверено (этапы 3–4)
+## Создание кампании (проверено на этапе 3)
 
-Запись: `POST /campaigns`, `POST /streams`, `PUT /streams/{id}` (обновление `offers[].share`),
-`DELETE /campaigns/{id}` (откат). Форматы подтвердим на тестовой кампании с префиксом `adrobot-test-`.
+Кампания `adrobot-test-au-1` (id 215534) создана этими запросами; Keitaro не создаёт потоки
+автоматически — после создания у кампании ровно 2 наших потока.
+
+`POST /campaigns`:
+```json
+{"name": "adrobot-test-au-1", "alias": "Xiw4ra31", "type": "position", "state": "active",
+ "domain_id": 1813, "group_id": 10332, "traffic_source_id": 836,
+ "cost_type": "CPC", "cost_value": 0, "cost_currency": "USD", "cost_auto": true}
+```
+`alias` генерируем сами (8 символов `[A-Za-z0-9]`); ответ — объект кампании.
+
+`POST /streams` (поток 1):
+```json
+{"campaign_id": 215534, "type": "regular", "name": "AU → Google", "position": 1, "state": "active",
+ "schema": "redirect", "action_type": "http", "action_payload": "https://google.com",
+ "collect_clicks": true, "filter_or": false,
+ "filters": [{"name": "country", "mode": "accept", "payload": ["AU"]}]}
+```
+
+`POST /streams` (поток 2):
+```json
+{"campaign_id": 215534, "type": "regular", "name": "Офферы", "position": 2, "state": "active",
+ "schema": "landings", "action_type": "do_nothing", "collect_clicks": true, "filter_or": false,
+ "filters": [], "offers": [{"offer_id": 18813, "share": 100, "state": "active"}]}
+```
+
+Время: `POST /campaigns` ≈ 2.5 с, каждый `POST /streams` ≈ 0.3–0.4 с.
+
+## Ещё не проверено (этап 4)
+
+`PUT /streams/{id}` (обновление `offers[].share`). `DELETE /campaigns/{id}` (откат при сбое) в коде есть,
+вживую не вызывался — проверено только на моках.
 
 ## Особенности трекера
 
