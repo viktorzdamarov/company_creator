@@ -4,7 +4,7 @@
 
 Стек: FastAPI, SQLAlchemy 2.0, Alembic, фронт на HTML + jQuery.
 
-> Статус: этап 0 (каркас). Создание кампаний и редактор появятся на следующих этапах.
+> Статус: этап 1 (клиент Keitaro). Создание кампаний и редактор появятся на следующих этапах.
 
 ## Требования
 - Python 3.11+
@@ -44,6 +44,15 @@ uvicorn app.main:app --reload
 pytest
 ```
 
+Проверка подключения к реальному Keitaro (только чтение, ничего не меняет):
+
+```bash
+python -m scripts.keitaro_smoke            # справочники, офферы, дефолты из .env
+python -m scripts.keitaro_smoke 215521     # + потоки и статистика кампании
+```
+
+Форматы запросов/ответов Keitaro API: [docs/keitaro_api_notes.md](docs/keitaro_api_notes.md).
+
 ## Переменные окружения
 
 | Переменная | Описание |
@@ -51,5 +60,6 @@ pytest
 | `KEITARO_URL` | адрес трекера |
 | `KEITARO_API_KEY` | ключ Admin API |
 | `KEITARO_DEFAULT_DOMAIN` / `_GROUP` / `_SOURCE` | домен, группа и источник для новых кампаний |
+| `KEITARO_TIMEOUT` / `KEITARO_MAX_RETRIES` / `KEITARO_RETRY_BACKOFF` | таймаут запроса, число повторов при 429/5xx/сетевых ошибках, начальная пауза |
 | `DATABASE_URL` | строка подключения SQLAlchemy |
 | `LOG_LEVEL` | уровень логирования |

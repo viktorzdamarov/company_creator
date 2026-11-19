@@ -11,9 +11,14 @@ class Settings(BaseSettings):
     keitaro_url: str = Field(..., description="Base URL of the Keitaro tracker")
     keitaro_api_key: SecretStr = Field(..., description="Keitaro Admin API key")
 
-    keitaro_default_domain: str = "in.posdk.xyz"
+    # Name or numeric ID of existing Keitaro entities used for new campaigns.
+    keitaro_default_domain: str = "kylovoa.com"
     keitaro_default_group: str = "FORTESTS"
     keitaro_default_source: str = "FORTESTS"
+
+    keitaro_timeout: float = 15.0
+    keitaro_max_retries: int = 3
+    keitaro_retry_backoff: float = 0.5  # seconds, doubled each retry
 
     database_url: str = "sqlite:///./adrobot.db"
     log_level: str = "INFO"
