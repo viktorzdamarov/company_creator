@@ -6,6 +6,7 @@ from app.api.deps import get_campaign_defaults, get_keitaro
 from app.db.session import get_db
 from app.keitaro.client import KeitaroClient
 from app.services.campaign_creator import CampaignCreator, CreateCampaignResult
+from app.services.campaign_editor import CampaignEditor, CampaignListItem, CampaignView
 from app.services.defaults import CampaignDefaults
 from app.services.geo import parse_geo
 
@@ -29,6 +30,58 @@ class CreateCampaignRequest(BaseModel):
     @classmethod
     def _parse_geo(cls, v):
         return parse_geo(v)  # GeoError is a ValueError -> 422
+
+
+class AddOfferRequest(BaseModel):
+    offer_id: int = Field(..., gt=0, examples=[18813])
+
+
+@router.get("", response_model=list[CampaignListItem], summary="List campaigns (search by ID or name)")
+def list_campaigns(
+    q: str = Query("", description="Campaign ID or part of the name"),
+    client: KeitaroClient = Depends(get_keitaro),
+    db: Session = Depends(get_db),
+) -> list[CampaignListItem]:
+    return CampaignEditor(client, db).list_campaigns(q)
+
+
+@router.get("/{campaign_id}", response_model=CampaignView, summary="Campaign with flows, offers (%) and stats")
+def get_campaign(
+    campaign_id: int,
+    client: KeitaroClient = Depends(get_keitaro),
+    db: Session = Depends(get_db),
+) -> CampaignView:
+    return CampaignEditor(client, db).get(campaign_id)
+
+
+@router.post(
+    "/{campaign_id}/streams/{stream_id}/offers",
+    response_model=CampaignView,
+    summary="Add offer to a flow; shares are redistributed evenly",
+)
+def add_offer(
+    campaign_id: int,
+    stream_id: int,
+    body: AddOfferRequest,
+    client: KeitaroClient = Depends(get_keitaro),
+    db: Session = Depends(get_db),
+) -> CampaignView:
+    return CampaignEditor(client, db).add_offer(campaign_id, stream_id, body.offer_id)
+
+
+@router.delete(
+    "/{campaign_id}/streams/{stream_id}/offers/{offer_id}",
+    response_model=CampaignView,
+    summary="Remove offer from a flow; shares are redistributed evenly",
+)
+def remove_offer(
+    campaign_id: int,
+    stream_id: int,
+    offer_id: int,
+    client: KeitaroClient = Depends(get_keitaro),
+    db: Session = Depends(get_db),
+) -> CampaignView:
+    return CampaignEditor(client, db).remove_offer(campaign_id, stream_id, offer_id)
 
 
 @router.post(

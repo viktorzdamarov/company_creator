@@ -3,45 +3,11 @@ import json
 import httpx
 import pytest
 import respx
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy import select
 
-from app.api.deps import get_keitaro
-from app.db import models  # noqa: F401
-from app.db.base import Base
 from app.db.models import CampaignRecord, OperationLog
-from app.db.session import get_db
-from app.keitaro.client import KeitaroClient
-from app.main import create_app
 from app.services.geo import GeoError, parse_geo
-
-BASE = "https://keitaro.test"
-API = BASE + "/admin_api/v1"
-
-
-@pytest.fixture
-def db_session():
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(engine)
-    session = sessionmaker(bind=engine, expire_on_commit=False)()
-    yield session
-    session.close()
-
-
-@pytest.fixture
-def api(db_session):
-    app = create_app()
-
-    def _keitaro():
-        c = KeitaroClient(BASE, "k", max_retries=0, retry_backoff=0)
-        yield c
-        c.close()
-
-    app.dependency_overrides[get_keitaro] = _keitaro
-    app.dependency_overrides[get_db] = lambda: db_session
-    return TestClient(app)
+from tests.conftest import API
 
 
 @pytest.fixture
