@@ -1,9 +1,14 @@
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api import routes_campaigns, routes_offers
+from app.web import routes_pages
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.keitaro.errors import KeitaroError
@@ -41,6 +46,8 @@ def create_app() -> FastAPI:
 
     app.include_router(routes_offers.router)
     app.include_router(routes_campaigns.router)
+    app.include_router(routes_pages.router)
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     return app
 
 

@@ -1,0 +1,7 @@
+{
+  "name": "adrobot-ui-smoke",
+  "private": true,
+  "description": "Browser smoke test of Adrobot pages (no changes in Keitaro: dry-run + rejected edits)",
+  "scripts": { "test": "node ui_smoke.js" },
+  "devDependencies": { "puppeteer-core": "22.15.0" }
+}

@@ -23,3 +23,7 @@ venv/
 *.pdf
 *.jpg
 TZ.md
+
+# e2e
+node_modules/
+tests/e2e/*.png

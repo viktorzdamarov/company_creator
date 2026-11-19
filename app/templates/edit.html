@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Editor{% endblock %}
+{% block content %}
+<section class="card">
+  <div class="field inline">
+    <label for="campaign-search">Кампания</label>
+    <div class="ac grow" data-source="/api/campaigns">
+      <input id="campaign-search" class="ac-input" placeholder="ID или часть названия кампании">
+      <input type="hidden" class="ac-value">
+      <ul class="ac-list" hidden></ul>
+    </div>
+  </div>
+</section>
+
+<div id="flash" class="alert" hidden></div>
+
+<section class="card" id="campaign" hidden data-campaign-id="{{ campaign_id or '' }}">
+  <div class="campaign-head">
+    <div>
+      <h1 id="c-name"></h1>
+      <div class="muted">
+        #<span id="c-id"></span> · <span id="c-group"></span> ·
+        <code id="c-url"></code>
+      </div>
+    </div>
+    <button type="button" class="btn" id="reload">↻ Обновить</button>
+  </div>
+
+  <table class="flows">
+    <thead>
+      <tr><th>Поток</th><th class="num">Клики</th><th class="num">Уник.</th><th class="num">Боты</th></tr>
+    </thead>
+    <tbody id="flows"></tbody>
+    <tfoot>
+      <tr><th>Итого</th><th class="num" id="t-clicks"></th><th class="num" id="t-uniq"></th><th class="num" id="t-bots"></th></tr>
+    </tfoot>
+  </table>
+</section>
+
+<div id="loading" class="muted" hidden>Загрузка…</div>
+{% endblock %}
+{% block scripts %}<script src="/static/edit.js"></script>{% endblock %}

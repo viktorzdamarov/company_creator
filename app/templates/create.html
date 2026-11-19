@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}New campaign{% endblock %}
+{% block content %}
+<div class="grid-2">
+  <section class="card">
+    <h1>New campaign</h1>
+    <form id="create-form" autocomplete="off" novalidate>
+      <div class="field">
+        <label for="name">Name</label>
+        <input id="name" name="name" placeholder="имя кампании" required maxlength="200">
+      </div>
+      <div class="field">
+        <label for="geo">Geo</label>
+        <input id="geo" name="geo" placeholder="MX,AU,RO,..." required>
+        <small class="hint">Коды стран ISO через запятую. Трафик из этих стран уйдёт на google.com</small>
+      </div>
+      <div class="field">
+        <label for="offer">Offer</label>
+        <div class="ac" data-source="/api/offers">
+          <input id="offer" class="ac-input" placeholder="поиск по офферам с автокомплитом">
+          <input type="hidden" id="offer_id" class="ac-value">
+          <ul class="ac-list" hidden></ul>
+        </div>
+        <small class="hint">Остальной трафик уйдёт на этот оффер (100%)</small>
+      </div>
+      <label class="check"><input type="checkbox" id="dry_run"> Предпросмотр (dry run) — ничего не создавать</label>
+      <button type="submit" class="btn btn-primary btn-block" id="create-btn">Create</button>
+    </form>
+    <div id="create-error" class="alert alert-error" hidden></div>
+  </section>
+
+  <section class="card" id="result" hidden>
+    <h2 id="result-title">Кампания создана</h2>
+    <dl class="kv">
+      <dt>ID</dt><dd id="r-id"></dd>
+      <dt>Название</dt><dd id="r-name"></dd>
+      <dt>Tracking URL</dt>
+      <dd><code id="r-url"></code> <button type="button" class="btn btn-link" id="copy-url">копировать</button></dd>
+      <dt>Домен / группа / источник</dt><dd id="r-defaults"></dd>
+      <dt>Время</dt><dd id="r-time"></dd>
+    </dl>
+    <h3>Потоки</h3>
+    <ol id="r-streams" class="streams-mini"></ol>
+    <a id="r-edit" class="btn" href="#">Открыть в редакторе →</a>
+    <details id="r-payloads" hidden><summary>Что будет отправлено в Keitaro</summary><pre></pre></details>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/create.js"></script>{% endblock %}
