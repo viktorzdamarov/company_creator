@@ -30,3 +30,4 @@ tests/e2e/*.png
 
 # local Claude Code settings
 .claude/
+demo_state.json

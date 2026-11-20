@@ -8,6 +8,10 @@ from fastapi.templating import Jinja2Templates
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+from app.core.config import get_settings
+
+templates.env.globals["demo_mode"] = lambda: get_settings().demo_mode
+
 router = APIRouter(include_in_schema=False)
 
 

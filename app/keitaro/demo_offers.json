@@ -1,0 +1,7 @@
+[
+  {"id": 9001, "name": "Aurora Slim [DEMO-US] [vsl en] ReactJs v1", "state": "active", "country": ["US"], "group": "DEMO"},
+  {"id": 9002, "name": "Nordic Joint Relief [DEMO-DE] [advertorial de]", "state": "active", "country": ["DE"], "group": "DEMO"},
+  {"id": 9003, "name": "Vitalis Hearing Pro [DEMO-MX] [vsl es -] JS", "state": "active", "country": ["MX"], "group": "DEMO"},
+  {"id": 9004, "name": "GreenLeaf Detox Tea [DEMO-AU] [landing en]", "state": "active", "country": ["AU"], "group": "DEMO"},
+  {"id": 9005, "name": "Lumina Skin Serum [DEMO-RO] [spin ro -] Pillow", "state": "active", "country": ["RO"], "group": "DEMO"}
+]

@@ -99,3 +99,17 @@ details pre { background: #f6f8fa; padding: 10px; border-radius: 4px; overflow: 
 .offers .share { color: var(--primary-dark); font-weight: 600; min-width: 42px; text-align: right; }
 .add-offer { display: flex; gap: 8px; margin: 10px 0 0 16px; max-width: 560px; }
 #campaign.busy { opacity: .7; }
+.demo-banner { background: #fff3cd; color: #7a5b00; text-align: center; padding: 4px 8px; font-size: 13px; border-bottom: 1px solid #f0dc8a; }
+
+/* editor: unpublished flows (yellow), removed offers (grey) */
+.flow.dirty > td:first-child { background: #fff8d6; box-shadow: inset 3px 0 0 #e6b800; }
+.flow.dirty .dot { background: #e6b800; }
+.flow-note { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.offers li.grey .offer-name, .offers li.grey .share { color: #9aa3ad; }
+.offers li.grey .offer-name { text-decoration: line-through; }
+.offers li.new .offer-name::after { content: " new"; color: #a67c00; font-size: 12px; }
+.offers li .tag { font-size: 12px; color: #9aa3ad; }
+.btn-sm { padding: 2px 10px; font-size: 13px; }
+.btn-pin { border: 0; background: none; cursor: pointer; padding: 0 4px; opacity: .35; filter: grayscale(1); }
+.btn-pin.on { opacity: 1; filter: none; }
+.flow-actions { display: flex; gap: 8px; margin: 10px 0 0 16px; }

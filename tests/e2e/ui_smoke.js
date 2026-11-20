@@ -1,7 +1,9 @@
-// UI smoke: no changes in Keitaro (dry-run create; editor actions rejected before save).
+// UI smoke: no changes in Keitaro (dry-run create; editor works on the local draft and never presses Push).
+// The editor part needs a campaign with an offer flow whose name contains "adrobot-test".
 const puppeteer = require("puppeteer-core");
 const BASE = process.env.ADROBOT_URL || "http://127.0.0.1:8000";
 const OUT = process.argv[2] || ".";
+const OFFER_Q = process.env.ADROBOT_OFFER_QUERY || "flex", OFFER_ID = process.env.ADROBOT_OFFER_ID || "18813";
 const results = [];
 const check = (name, ok, extra = "") => { results.push(ok); console.log(`${ok ? "PASS" : "FAIL"} ${name} ${extra}`); };
 
@@ -23,12 +25,12 @@ const check = (name, ok, extra = "") => { results.push(ok); console.log(`${ok ? 
 
   await page.type("#name", "adrobot-test-ui");
   await page.type("#geo", "au, XX1");
-  await page.type("#offer", "flex");
+  await page.type("#offer", OFFER_Q);
   await page.waitForSelector(".ac-list .ac-item", { visible: true, timeout: 10000 });
   const acText = await page.$eval(".ac-list .ac-item", e => e.textContent);
-  check("offer autocomplete shows results", acText.includes("18813"), `"${acText}"`);
+  check("offer autocomplete shows results", acText.includes(OFFER_ID), `"${acText}"`);
   await page.keyboard.press("Enter");
-  check("autocomplete selection sets offer id", (await page.$eval("#offer_id", e => e.value)) === "18813");
+  check("autocomplete selection sets offer id", (await page.$eval("#offer_id", e => e.value)) === OFFER_ID);
 
   await page.click("#dry_run");
   await page.click("#create-btn");
@@ -49,27 +51,46 @@ const check = (name, ok, extra = "") => { results.push(ok); console.log(`${ok ? 
 
   // ---------- editor
   await page.goto(BASE + "/edit", { waitUntil: "networkidle0" });
-  await page.type("#campaign-search", "adrobot-test");
+  await page.type("#campaign-search", process.env.ADROBOT_CAMPAIGN || "adrobot-test");
   await page.waitForSelector(".ac-list .ac-item", { visible: true, timeout: 10000 });
   await page.keyboard.press("Enter");
   await page.waitForSelector("#campaign:not([hidden]) .flow", { timeout: 15000 });
-  check("campaign search -> opens editor", page.url().endsWith("/edit/215534"), page.url());
+  check("campaign search -> opens editor", /\/edit\/\d+$/.test(page.url()), page.url());
   const flows = await page.$$eval(".flow", fs => fs.length);
   check("two flows rendered", flows === 2);
-  check("last offer remove button disabled", await page.$eval(".remove-offer", b => b.disabled));
+  check("clean flow: Push and Cancel disabled", await page.$eval(".push-btn", b => b.disabled) && await page.$eval(".cancel-btn", b => b.disabled));
 
-  await page.type(".add-offer .ac-input", "18813");
+  // duplicate offer -> error (nothing changes)
+  const firstOffer = await page.$eval(".offers li", li => li.dataset.offer);
+  await page.type(".add-offer .ac-input", firstOffer);
   await page.waitForSelector(".add-offer .ac-list .ac-item", { visible: true, timeout: 10000 });
   await page.keyboard.press("Enter");
   await page.click(".add-btn");
-  await page.waitForFunction(() => !document.querySelector("#flash").hidden, { timeout: 15000 });
+  await page.waitForFunction(() => document.querySelector("#flash").classList.contains("alert-error"), { timeout: 15000 });
   const flash = await page.$eval("#flash", e => e.className + " | " + e.textContent);
-  check("duplicate offer -> error flash", flash.includes("alert-error") && flash.includes("already"), `"${flash}"`);
-  await page.screenshot({ path: OUT + "/ui-edit-error.png" });
+  check("duplicate offer -> error flash", flash.includes("alert-error"), `"${flash}"`);
+
+  // draft workflow, local only (never pressing Push): remove -> yellow flow, grey offer 0% -> Bring back -> clean
+  await page.click(".remove-offer");
+  await page.waitForSelector(".flow.dirty .offers li.grey", { timeout: 15000 });
+  check("remove -> flow yellow, offer grey 0%", (await page.$eval(".offers li.grey .share", e => e.textContent)) === "0%");
+  check("Push and Cancel enabled when dirty", !(await page.$eval(".push-btn", b => b.disabled)) && !(await page.$eval(".cancel-btn", b => b.disabled)));
+  await page.screenshot({ path: OUT + "/ui-edit-dirty.png" });
+  await page.click(".bring-back");
+  await page.waitForSelector(".flow:not(.dirty) .offers li:not(.grey)", { timeout: 15000 });
+  check("bring back -> flow clean again", true);
+
+  // remove again, then Cancel (confirm dialog accepted)
+  await page.click(".remove-offer");
+  await page.waitForSelector(".flow.dirty", { timeout: 15000 });
+  page.once("dialog", d => d.accept());
+  await page.click(".cancel-btn");
+  await page.waitForSelector(".flow:not(.dirty) .offers li:not(.grey)", { timeout: 15000 });
+  check("cancel -> flow clean again", true);
 
   await page.goto(BASE + "/edit/999999999", { waitUntil: "networkidle0" });
-  await page.waitForFunction(() => !document.querySelector("#flash").hidden, { timeout: 15000 });
-  check("unknown campaign -> error", (await page.$eval("#flash", e => e.textContent)).includes("Not found"));
+  await page.waitForFunction(() => document.querySelector("#flash").classList.contains("alert-error"), { timeout: 15000 });
+  check("unknown campaign -> error", (await page.$eval("#flash", e => e.textContent)).toLowerCase().includes("not found"));
 
   check("no JS errors in console", consoleErrors.filter(e => !e.startsWith("Failed to load resource")).length === 0, JSON.stringify(consoleErrors));
   await browser.close();

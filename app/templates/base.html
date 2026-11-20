@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
+  {% if demo_mode() %}<div class="demo-banner">DEMO: данные вымышленные, настоящий Keitaro не используется</div>{% endif %}
   <header class="topbar">
     <a class="brand" href="/">Adrobot</a>
     <nav>

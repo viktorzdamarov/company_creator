@@ -30,3 +30,27 @@ def assign_shares(offer_ids: Sequence[T]) -> list[tuple[T, int]]:
     if len(set(offer_ids)) != len(offer_ids):
         raise ValueError("duplicate offers in a stream")
     return list(zip(offer_ids, distribute(len(offer_ids))))
+
+
+class PinnedSharesError(ValueError):
+    """Pinned shares cannot be satisfied (sum over 100, or no room left for the unpinned offers)."""
+
+
+def distribute_with_pins(pins: Sequence[int | None], total: int = TOTAL) -> list[int]:
+    """Shares for offers in order; ``pins[i]`` is the pinned share of offer i or None.
+
+    Pinned offers keep their share; the rest is split evenly between the unpinned offers
+    (remainder to the first ones). If every offer is pinned the shares are returned as is:
+    the caller decides whether a sum != 100 is acceptable (it is not for Push).
+    """
+    pinned_sum = sum(p for p in pins if p is not None)
+    free = sum(1 for p in pins if p is None)
+    if pinned_sum > total:
+        raise PinnedSharesError(f"Закреплённые доли дают {pinned_sum}% (больше {total}%)")
+    if free == 0:
+        return [int(p) for p in pins]  # type: ignore[arg-type]
+    rest = total - pinned_sum
+    if rest < free:
+        raise PinnedSharesError(f"На {free} незакреплённых офферов осталось только {rest}%")
+    spread = iter(distribute(free, rest))
+    return [int(p) if p is not None else next(spread) for p in pins]

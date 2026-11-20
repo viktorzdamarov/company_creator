@@ -36,6 +36,10 @@ class AddOfferRequest(BaseModel):
     offer_id: int = Field(..., gt=0, examples=[18813])
 
 
+class PinRequest(BaseModel):
+    pinned: bool
+
+
 @router.get("", response_model=list[CampaignListItem], summary="List campaigns (search by ID or name)")
 def list_campaigns(
     q: str = Query("", description="Campaign ID or part of the name"),
@@ -45,7 +49,7 @@ def list_campaigns(
     return CampaignEditor(client, db).list_campaigns(q)
 
 
-@router.get("/{campaign_id}", response_model=CampaignView, summary="Campaign with flows, offers (%) and stats")
+@router.get("/{campaign_id}", response_model=CampaignView, summary="Local copy of the campaign (404 if not fetched yet)")
 def get_campaign(
     campaign_id: int,
     client: KeitaroClient = Depends(get_keitaro),
@@ -54,10 +58,19 @@ def get_campaign(
     return CampaignEditor(client, db).get(campaign_id)
 
 
+@router.post("/{campaign_id}/fetch", response_model=CampaignView, summary="Fetch streams: load/refresh flows from Keitaro")
+def fetch_campaign(
+    campaign_id: int,
+    client: KeitaroClient = Depends(get_keitaro),
+    db: Session = Depends(get_db),
+) -> CampaignView:
+    return CampaignEditor(client, db).fetch(campaign_id)
+
+
 @router.post(
     "/{campaign_id}/streams/{stream_id}/offers",
     response_model=CampaignView,
-    summary="Add offer to a flow; shares are redistributed evenly",
+    summary="Add offer to the local draft of a flow (not published until Push)",
 )
 def add_offer(
     campaign_id: int,
@@ -72,7 +85,7 @@ def add_offer(
 @router.delete(
     "/{campaign_id}/streams/{stream_id}/offers/{offer_id}",
     response_model=CampaignView,
-    summary="Remove offer from a flow; shares are redistributed evenly",
+    summary="Remove offer from the local draft (grey, 0%) until Push",
 )
 def remove_offer(
     campaign_id: int,
@@ -82,6 +95,57 @@ def remove_offer(
     db: Session = Depends(get_db),
 ) -> CampaignView:
     return CampaignEditor(client, db).remove_offer(campaign_id, stream_id, offer_id)
+
+
+@router.post(
+    "/{campaign_id}/streams/{stream_id}/offers/{offer_id}/bring-back",
+    response_model=CampaignView,
+    summary="Bring back a removed offer",
+)
+def bring_back(
+    campaign_id: int,
+    stream_id: int,
+    offer_id: int,
+    client: KeitaroClient = Depends(get_keitaro),
+    db: Session = Depends(get_db),
+) -> CampaignView:
+    return CampaignEditor(client, db).bring_back(campaign_id, stream_id, offer_id)
+
+
+@router.put(
+    "/{campaign_id}/streams/{stream_id}/offers/{offer_id}/pin",
+    response_model=CampaignView,
+    summary="Pin / unpin the share of an offer",
+)
+def pin_offer(
+    campaign_id: int,
+    stream_id: int,
+    offer_id: int,
+    body: PinRequest,
+    client: KeitaroClient = Depends(get_keitaro),
+    db: Session = Depends(get_db),
+) -> CampaignView:
+    return CampaignEditor(client, db).set_pin(campaign_id, stream_id, offer_id, body.pinned)
+
+
+@router.post("/{campaign_id}/streams/{stream_id}/push", response_model=CampaignView, summary="Push: publish the flow to Keitaro")
+def push_stream(
+    campaign_id: int,
+    stream_id: int,
+    client: KeitaroClient = Depends(get_keitaro),
+    db: Session = Depends(get_db),
+) -> CampaignView:
+    return CampaignEditor(client, db).push(campaign_id, stream_id)
+
+
+@router.post("/{campaign_id}/streams/{stream_id}/cancel", response_model=CampaignView, summary="Cancel unpublished changes of the flow")
+def cancel_stream(
+    campaign_id: int,
+    stream_id: int,
+    client: KeitaroClient = Depends(get_keitaro),
+    db: Session = Depends(get_db),
+) -> CampaignView:
+    return CampaignEditor(client, db).cancel(campaign_id, stream_id)
 
 
 @router.post(

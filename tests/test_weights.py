@@ -63,3 +63,32 @@ def test_add_and_remove_scenario():
     assert [s for _, s in assign_shares(offers)] == [34, 33, 33]
     offers.remove(3749)
     assert assign_shares(offers) == [(3717, 50), (18813, 50)]
+
+
+# ---------------------------------------------------------------- pinned shares
+
+import pytest as _pytest  # noqa: E402
+
+from app.services.weights import PinnedSharesError, distribute_with_pins  # noqa: E402
+
+
+@_pytest.mark.parametrize(
+    "pins, expected",
+    [
+        ([None, None, None], [34, 33, 33]),
+        ([25, None, None], [25, 38, 37]),
+        ([25, None, None, None], [25, 25, 25, 25]),
+        ([50, 50], [50, 50]),
+        ([60, None], [60, 40]),
+        ([30, 30], [30, 30]),  # all pinned: returned as is, Push checks the sum
+        ([], []),
+    ],
+)
+def test_distribute_with_pins(pins, expected):
+    assert distribute_with_pins(pins) == expected
+
+
+@_pytest.mark.parametrize("pins", [[60, 50], [100, None], [99, None, None]])
+def test_distribute_with_pins_impossible(pins):
+    with _pytest.raises(PinnedSharesError):
+        distribute_with_pins(pins)

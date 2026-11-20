@@ -90,6 +90,7 @@ window.Adrobot = (function ($) {
 
     $input.on("input", function () {
       $value.val("");  // typed text no longer matches the chosen item
+      seq++; items = []; close();  // drop in-flight/old results: Enter must not pick from a stale list
       clearTimeout(timer);
       timer = setTimeout(search, 250);
     });
