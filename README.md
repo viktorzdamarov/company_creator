@@ -1,5 +1,7 @@
 # Adrobot
 
+[![tests](https://github.com/viktorzdamarov/company_creator/actions/workflows/tests.yml/badge.svg)](https://github.com/viktorzdamarov/company_creator/actions/workflows/tests.yml)
+
 Сервис для трекера Keitaro: создаёт кампании по шаблону и редактирует офферы в существующих кампаниях.
 Стек: FastAPI, SQLAlchemy 2.0, Alembic, фронт на HTML + jQuery. Python 3.11+.
 
