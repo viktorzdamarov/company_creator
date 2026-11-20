@@ -115,3 +115,10 @@ def test_demo_state_survives_restart(monkeypatch, demo, tmp_path):
     demo.post("/api/campaigns", json={"name": "persisted", "geo": "RO", "offer_id": 9005})
     get_demo_client.cache_clear()  # "restart": a new client reads the state file
     assert any(c["name"] == "persisted" for c in demo.get("/api/campaigns").json())
+
+
+def test_only_sqlite_database_is_supported(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@host/db")
+    get_settings.cache_clear()
+    with pytest.raises(ConfigError, match="только SQLite"):
+        get_settings()

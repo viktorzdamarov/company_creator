@@ -27,8 +27,7 @@ uvicorn app.main:app --port 8000
 **Без Keitaro (демо):** поставьте `DEMO_MODE=true`. Появятся вымышленные офферы и кампании, ключ не нужен.
 Подробнее: [docs/demo.md](docs/demo.md).
 
-База данных по умолчанию SQLite (файл `adrobot.db`). Для Postgres задайте `DATABASE_URL`, например
-`postgresql+psycopg://user:pass@host/db`, и снова выполните `alembic upgrade head`.
+База данных: SQLite, файл `adrobot.db` создаётся рядом с проектом при `alembic upgrade head`. Ничего ставить не нужно.
 
 ## Как пользоваться
 

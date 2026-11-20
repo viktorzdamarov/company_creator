@@ -24,8 +24,14 @@ class Settings(BaseSettings):
     keitaro_max_retries: int = 3
     keitaro_retry_backoff: float = 0.5  # seconds, doubled each retry
 
-    database_url: str = "sqlite:///./adrobot.db"
+    database_url: str = "sqlite:///./adrobot.db"  # SQLite only
     log_level: str = "INFO"
+
+    @model_validator(mode="after")
+    def _sqlite_only(self):
+        if not self.database_url.startswith("sqlite"):
+            raise ValueError("DATABASE_URL: поддерживается только SQLite (sqlite:///./adrobot.db)")
+        return self
 
     @model_validator(mode="after")
     def _keitaro_required_outside_demo(self):
