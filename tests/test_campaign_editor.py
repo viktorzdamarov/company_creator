@@ -12,6 +12,7 @@ from tests.conftest import API
 
 CAMPAIGN_ID = 500
 GEO_STREAM, OFFER_STREAM = 11, 12
+FORBIDDEN_OFFER = 777
 OFFERS = {
     3749: "Miaflow [BEAUTY-RO-BE_0009]",
     3717: "Miaflow [BEAUTY-RO-BE_0008]",
@@ -56,6 +57,8 @@ class FakeKeitaro:
 
     def get_offer(self, request, offer_id):
         oid = int(offer_id)
+        if oid == FORBIDDEN_OFFER:  # exists, but the key's role cannot see it
+            return httpx.Response(403, json={"error": "You have no permission to access this page - Offers"})
         if oid not in OFFERS:
             return httpx.Response(404, text="<html>404</html>")
         return httpx.Response(200, json={"id": oid, "name": OFFERS[oid], "state": "active"})
@@ -229,6 +232,14 @@ def test_add_unknown_offer_404_and_nothing_changed(api, keitaro):
     _fetch(api)
     assert _add(api, 424242).status_code == 404
     assert _shares(api.get(URL).json()) == {3749: 100}
+
+
+def test_add_offer_without_permission_403_with_clear_message(api, keitaro):
+    _fetch(api)
+    resp = _add(api, FORBIDDEN_OFFER)
+    assert resp.status_code == 403
+    assert "Нет доступа к офферу 777" in resp.json()["detail"]
+    assert _shares(api.get(URL).json()) == {3749: 100}  # nothing changed
 
 
 def test_add_to_redirect_flow_422(api, keitaro):
@@ -418,6 +429,27 @@ def test_push_nothing_to_publish_409(api, keitaro, fake):
     _fetch(api)
     assert _push(api).status_code == 409
     assert fake.puts == []
+
+
+def test_push_refuses_to_overwrite_changes_made_in_keitaro(api, keitaro, fake):
+    _fetch(api)
+    # someone adds an offer directly in Keitaro after our Fetch
+    fake.streams[OFFER_STREAM]["offers"] = [
+        {"offer_id": 3749, "share": 50, "state": "active"}, {"offer_id": 18813, "share": 50, "state": "active"}]
+    _add(api, 3717)
+    resp = _push(api)
+    assert resp.status_code == 409 and resp.json()["error"] == "StreamChangedError"
+    assert fake.puts == [] and _keitaro(fake) == {3749: 50, 18813: 50}  # nothing overwritten
+    v = _fetch(api)  # Fetch brings in Keitaro's change and keeps the local draft
+    assert _shares(v) == {3749: 34, 3717: 33, 18813: 33} and _status(v, 3717) == "new"
+    assert _push(api).status_code == 200
+    assert _keitaro(fake) == {3749: 34, 3717: 33, 18813: 33}
+
+
+def test_fetch_works_without_stats(api, keitaro):
+    keitaro.post(f"{API}/report/build").respond(403, json={"error": "no permission - Reports"})
+    v = _fetch(api)
+    assert _shares(v) == {3749: 100} and v["total_clicks"] == 0
 
 
 def test_push_detects_keitaro_not_saving(api, keitaro, fake):

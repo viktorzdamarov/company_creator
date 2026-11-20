@@ -6,11 +6,14 @@ class KeitaroError(Exception):
 
     http_status = 502  # status Adrobot returns to its own clients
 
-    def __init__(self, message: str, *, status_code: int | None = None, path: str | None = None):
+    def __init__(
+        self, message: str, *, status_code: int | None = None, path: str | None = None, detail: str | None = None
+    ):
         super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.path = path
+        self.detail = detail  # Keitaro's own error text, if any
 
     def __str__(self) -> str:
         where = f" [{self.status_code} {self.path}]" if self.status_code else ""
@@ -18,9 +21,15 @@ class KeitaroError(Exception):
 
 
 class KeitaroAuthError(KeitaroError):
-    """401/403: wrong API key or missing permissions."""
+    """401: Keitaro did not accept the API key (wrong or revoked). Missing permissions are KeitaroForbiddenError."""
 
     http_status = 502
+
+
+class KeitaroForbiddenError(KeitaroAuthError):
+    """403: the API key is valid but its role has no permission for this section (e.g. Offers)."""
+
+    http_status = 403
 
 
 class KeitaroNotFoundError(KeitaroError):

@@ -12,6 +12,7 @@ Offer state is two flags (see EditorOffer): ``wanted`` (should be in the flow) a
 """
 from __future__ import annotations
 
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
@@ -24,6 +25,8 @@ from app.keitaro.client import KeitaroClient
 from app.keitaro.errors import KeitaroError, KeitaroNotFoundError
 from app.services.audit import log_operation
 from app.services.weights import PinnedSharesError, distribute_with_pins
+
+log = logging.getLogger(__name__)
 
 OFFER_SCHEMAS = {"landings"}
 
@@ -61,6 +64,12 @@ class DuplicateOfferError(EditorError):
 
 
 class NothingToPushError(EditorError):
+    http_status = 409
+
+
+class StreamChangedError(EditorError):
+    """The flow was changed in Keitaro after the last Fetch: pushing would overwrite those changes."""
+
     http_status = 409
 
 
@@ -183,7 +192,7 @@ class CampaignEditor:
             campaign_f = pool.submit(self.client.get_campaign, campaign_id)
             streams_f = pool.submit(self.client.get_streams, campaign_id)
             offers_f = pool.submit(self._offer_names)
-            stats_f = pool.submit(self.client.stream_stats, campaign_id)
+            stats_f = pool.submit(self._stats, campaign_id)
             campaign = campaign_f.result()
             k_streams = streams_f.result()
             names = offers_f.result()
@@ -326,14 +335,20 @@ class CampaignEditor:
         }
         payload = {"offers": [{"offer_id": oid, "share": share, "state": "active"} for oid, share in expected]}
         try:
+            # Optimistic check: Keitaro must still have what we saw at the last Fetch, otherwise the PUT
+            # would silently drop offers someone added/changed directly in Keitaro.
+            current = self._keitaro_offers(campaign_id, stream.id)
+            seen = sorted((o.offer_id, o.published_share) for o in stream.offers if o.published)
+            if current != seen:
+                raise StreamChangedError(
+                    f"Поток {stream.id} изменён в Keitaro после загрузки (сейчас там {current}, мы видели {seen}). "
+                    "Нажмите Fetch streams: ваши неопубликованные правки сохранятся"
+                )
             self.client.update_stream(stream.id, payload)
-            saved = next((s for s in self.client.get_streams(campaign_id) if s.id == stream.id), None)
-            if saved is None:
-                raise KeitaroNotFoundError(f"Поток {stream.id} пропал после сохранения")
-            actual = sorted((o.offer_id, o.share) for o in saved.offers if o.state == "active")
+            actual = self._keitaro_offers(campaign_id, stream.id)
             if actual != expected:
                 raise SaveVerificationError(f"Keitaro сохранил {actual}, ожидалось {expected}")
-        except (KeitaroError, SaveVerificationError) as exc:
+        except (KeitaroError, SaveVerificationError, StreamChangedError) as exc:
             log_operation(self.db, "stream.push", status="error", campaign_id=campaign_id, details=details, error=str(exc))
             raise
         for o in stream.offers:
@@ -345,6 +360,21 @@ class CampaignEditor:
         return self.get(campaign_id)
 
     # -------- helpers
+
+    def _keitaro_offers(self, campaign_id: int, stream_id: int) -> list[tuple[int, int]]:
+        """Active (offer_id, share) of a flow as Keitaro has it right now, sorted."""
+        stream = next((s for s in self.client.get_streams(campaign_id) if s.id == stream_id), None)
+        if stream is None:
+            raise KeitaroNotFoundError(f"Поток {stream_id} не найден в Keitaro")
+        return sorted((o.offer_id, o.share) for o in stream.offers if o.state == "active")
+
+    def _stats(self, campaign_id: int) -> dict:
+        """Clicks are informational: if the report is not available (e.g. no rights), show zeros instead of failing."""
+        try:
+            return self.client.stream_stats(campaign_id)
+        except KeitaroError as exc:
+            log.warning("stream stats for campaign %s unavailable: %s", campaign_id, exc)
+            return {}
 
     def _streams(self, campaign_id: int) -> list[EditorStream]:
         q = select(EditorStream).where(EditorStream.campaign_id == campaign_id).order_by(EditorStream.position, EditorStream.id)

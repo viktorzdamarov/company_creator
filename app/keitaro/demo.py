@@ -136,7 +136,9 @@ class DemoKeitaroClient(KeitaroClient):
 
     # ------------------------------------------------------------------ the fake HTTP layer
 
-    def request(self, method: str, path: str, *, json: Any = None, params: dict | None = None) -> Any:
+    def request(
+        self, method: str, path: str, *, json: Any = None, params: dict | None = None, idempotent: bool | None = None
+    ) -> Any:
         with self._lock:
             result = copy.deepcopy(self._route(method.upper(), path, json, params or {}))
             if method.upper() != "GET" and path != "/report/build":

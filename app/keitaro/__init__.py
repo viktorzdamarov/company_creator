@@ -2,6 +2,7 @@ from app.keitaro.client import KeitaroClient
 from app.keitaro.errors import (
     KeitaroAuthError,
     KeitaroError,
+    KeitaroForbiddenError,
     KeitaroNotFoundError,
     KeitaroRateLimitError,
     KeitaroTimeoutError,
@@ -13,6 +14,7 @@ __all__ = [
     "KeitaroClient",
     "KeitaroError",
     "KeitaroAuthError",
+    "KeitaroForbiddenError",
     "KeitaroNotFoundError",
     "KeitaroValidationError",
     "KeitaroRateLimitError",

@@ -5,6 +5,7 @@ import respx
 from app.keitaro import (
     KeitaroAuthError,
     KeitaroClient,
+    KeitaroForbiddenError,
     KeitaroNotFoundError,
     KeitaroRateLimitError,
     KeitaroTimeoutError,
@@ -69,6 +70,23 @@ def test_401_raises_auth_error(client):
 
 
 @respx.mock
+def test_403_on_offer_explains_missing_permission(client):
+    respx.get(f"{API}/offers/18812").respond(403, json={"error": "You have no permission to access this page - Offers"})
+    with pytest.raises(KeitaroForbiddenError, match="Нет доступа к офферу 18812") as exc:
+        client.get_offer(18812)
+    assert exc.value.http_status == 403 and exc.value.status_code == 403
+    assert "You have no permission to access this page - Offers" in exc.value.message  # Keitaro's own reason kept
+    assert "проверьте ID" in exc.value.message  # 403 may also mean the offer does not exist
+
+
+@respx.mock
+def test_403_elsewhere_is_a_permission_error_not_a_key_error(client):
+    respx.get(f"{API}/campaigns").respond(403, json={"error": "no permission"})
+    with pytest.raises(KeitaroForbiddenError, match="нет прав"):
+        client.list_campaigns()
+
+
+@respx.mock
 def test_404_html_raises_not_found(client):
     respx.get(f"{API}/campaigns/999").respond(404, text="<html>404 Not Found</html>")
     with pytest.raises(KeitaroNotFoundError):
@@ -113,6 +131,43 @@ def test_timeout_raises_timeout_error(client):
     with pytest.raises(KeitaroTimeoutError):
         client.list_domains()
     assert route.call_count == 3
+
+
+CREATED = {"id": 2, "alias": "a", "name": "n"}
+
+
+@respx.mock
+@pytest.mark.parametrize("failure", [httpx.ReadTimeout("slow"), httpx.Response(503), httpx.RemoteProtocolError("dropped")])
+def test_post_is_not_retried_when_keitaro_may_have_done_it(client, failure):
+    """A repeated POST /campaigns could create a second campaign: only the first attempt is sent."""
+    side = [failure, httpx.Response(200, json=CREATED)]
+    route = respx.post(f"{API}/campaigns").mock(side_effect=side)
+    with pytest.raises((KeitaroTimeoutError, KeitaroUnavailableError)):
+        client.create_campaign({"name": "n", "alias": "a"})
+    assert route.call_count == 1
+
+
+@respx.mock
+@pytest.mark.parametrize("failure", [httpx.ConnectError("refused"), httpx.ConnectTimeout("no route"), httpx.Response(429)])
+def test_post_is_retried_when_keitaro_surely_did_nothing(client, failure):
+    route = respx.post(f"{API}/campaigns").mock(side_effect=[failure, httpx.Response(200, json=CREATED)])
+    assert client.create_campaign({"name": "n", "alias": "a"}).id == 2
+    assert route.call_count == 2
+
+
+@respx.mock
+def test_put_stream_is_retried_it_is_idempotent(client):
+    stream = {**STREAMS[0], "offers": []}
+    route = respx.put(f"{API}/streams/1").mock(side_effect=[httpx.ReadTimeout("slow"), httpx.Response(200, json=stream)])
+    client.update_stream(1, {"offers": []})
+    assert route.call_count == 2
+
+
+@respx.mock
+def test_report_post_is_retried_it_only_reads(client):
+    route = respx.post(f"{API}/report/build").mock(side_effect=[httpx.Response(503), httpx.Response(200, json={"rows": []})])
+    assert client.stream_stats(10) == {}
+    assert route.call_count == 2
 
 
 @respx.mock

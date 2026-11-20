@@ -14,6 +14,7 @@ import httpx
 from app.keitaro.errors import (
     KeitaroAuthError,
     KeitaroError,
+    KeitaroForbiddenError,
     KeitaroNotFoundError,
     KeitaroRateLimitError,
     KeitaroTimeoutError,
@@ -33,6 +34,7 @@ from app.keitaro.schemas import (
 log = logging.getLogger(__name__)
 
 RETRY_STATUSES = {429, 500, 502, 503, 504}
+IDEMPOTENT_METHODS = {"GET", "PUT"}  # PUT /streams sends the full offers list: repeating it changes nothing
 API_PREFIX = "/admin_api/v1"
 
 
@@ -82,21 +84,32 @@ class KeitaroClient:
 
     # ------------------------------------------------------------------ transport
 
-    def request(self, method: str, path: str, *, json: Any = None, params: dict | None = None) -> Any:
-        """Perform a request with retries; return parsed JSON or raise a typed KeitaroError."""
+    def request(
+        self, method: str, path: str, *, json: Any = None, params: dict | None = None, idempotent: bool | None = None
+    ) -> Any:
+        """Perform a request with retries; return parsed JSON or raise a typed KeitaroError.
+
+        Retry policy (a repeated POST could create a second campaign/stream in Keitaro):
+        - the request never reached Keitaro (connect error / connect timeout) or got 429: retried for any method;
+        - read timeout, broken connection or 5xx: retried only for idempotent requests
+          (GET/PUT by default; read-only POSTs such as reports pass ``idempotent=True``).
+        """
+        if idempotent is None:
+            idempotent = method.upper() in IDEMPOTENT_METHODS
         attempt = 0
         while True:
             attempt += 1
+            can_retry = attempt <= self.max_retries
             started = time.perf_counter()
             try:
                 resp = self._http.request(method, path, json=json, params=params)
             except httpx.TimeoutException as exc:
-                if attempt <= self.max_retries:
+                if can_retry and (idempotent or isinstance(exc, httpx.ConnectTimeout)):
                     self._sleep(attempt, method, path, "timeout")
                     continue
                 raise KeitaroTimeoutError(f"Keitaro did not respond in time: {method} {path}", path=path) from exc
             except httpx.TransportError as exc:
-                if attempt <= self.max_retries:
+                if can_retry and (idempotent or isinstance(exc, httpx.ConnectError)):
                     self._sleep(attempt, method, path, type(exc).__name__)
                     continue
                 raise KeitaroUnavailableError(f"Cannot connect to Keitaro: {exc}", path=path) from exc
@@ -104,7 +117,8 @@ class KeitaroClient:
             elapsed_ms = (time.perf_counter() - started) * 1000
             log.info("keitaro %s %s -> %s (%.0f ms)", method, path, resp.status_code, elapsed_ms)
 
-            if resp.status_code in RETRY_STATUSES and attempt <= self.max_retries:
+            retryable = resp.status_code == 429 or (idempotent and resp.status_code in RETRY_STATUSES)
+            if retryable and can_retry:
                 self._sleep(attempt, method, path, str(resp.status_code), resp.headers.get("Retry-After"))
                 continue
             return self._handle(resp, path)
@@ -139,8 +153,10 @@ class KeitaroClient:
 
         text = self._error_text(resp)
         kwargs = {"status_code": code, "path": path}
-        if code in (401, 403):
-            raise KeitaroAuthError(f"Keitaro rejected the API key or permissions: {text}", **kwargs)
+        if code == 403:
+            raise KeitaroForbiddenError(f"У роли API-ключа нет прав на это действие в Keitaro: {text}", detail=text, **kwargs)
+        if code == 401:
+            raise KeitaroAuthError(f"Keitaro не принял API-ключ (неверный или отозван): {text}", detail=text, **kwargs)
         if code == 404:
             raise KeitaroNotFoundError(f"Not found in Keitaro: {path}", **kwargs)
         if code in (400, 422):
@@ -169,7 +185,15 @@ class KeitaroClient:
         return [Offer.model_validate(o) for o in self.request("GET", "/offers")]
 
     def get_offer(self, offer_id: int) -> Offer:
-        return Offer.model_validate(self.request("GET", f"/offers/{offer_id}"))
+        try:
+            return Offer.model_validate(self.request("GET", f"/offers/{offer_id}"))
+        except KeitaroForbiddenError as exc:
+            # Without rights on Offers Keitaro answers 403 for any ID, even a non-existent one: don't claim it exists.
+            raise KeitaroForbiddenError(
+                f"Нет доступа к офферу {offer_id}: у роли API-ключа нет прав на офферы или на этот оффер "
+                f"(проверьте ID и права роли в Keitaro). Ответ Keitaro: {exc.detail}",
+                status_code=exc.status_code, path=exc.path, detail=exc.detail,
+            ) from exc
 
     def search_offers(self, query: str = "", limit: int = 20) -> list[Offer]:
         """Autocomplete: match by exact ID or case-insensitive substring of the name.
@@ -218,7 +242,7 @@ class KeitaroClient:
             "measures": ["clicks", "campaign_unique_clicks", "bots"],
             "filters": [{"name": "campaign_id", "operator": "EQUALS", "expression": campaign_id}],
         }
-        data = self.request("POST", "/report/build", json=body) or {}
+        data = self.request("POST", "/report/build", json=body, idempotent=True) or {}  # read-only report
         result: dict[int, StreamStats] = {}
         for row in data.get("rows", []):
             if row.get("stream_id") in (None, ""):
